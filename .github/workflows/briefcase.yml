@@ -30,14 +30,15 @@ jobs:
 
     - name: Build app
       run: |
-        briefcase create
-        briefcase build
-        briefcase package
+        python -m briefcase create
+        python -m briefcase build
+        python -m briefcase package
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: altima-usb-installer-${{ matrix.os }}
         path: dist/
+
 
 
