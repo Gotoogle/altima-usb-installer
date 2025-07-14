@@ -3,6 +3,7 @@ project_name = "Altima USB Installer"
 bundle = "com.altimalinux.usbinstaller"
 version = "1.0.0"
 description = "Install Ventoy and copy Altima Linux ISO to USB"
+system_python = false
 license = "MIT"
 requires = ["requests", "PySide6"]
 author = "Altima Linux Team"
