@@ -1,5 +1,4 @@
-
-name: Build with Briefcase
+name: Build Altima USB Installer
 
 on:
   push:
@@ -13,34 +12,29 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04, windows-latest]
-    env:
-      BRIEFCASE_CODESIGN: "adhoc"
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: 🧾 Checkout source
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.12
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install briefcase requests PySide6
+      - name: 🔧 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install briefcase PySide6 requests
 
-    - name: Build app
-      run: |
-        python -m briefcase create
-        python -m briefcase build
-        python -m briefcase package
+      - name: 📦 Build app
+        run: |
+          python -m briefcase create
+          python -m briefcase build
+          python -m briefcase package
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: altima-usb-installer-${{ matrix.os }}
-        path: dist/
-
-
-
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: altima-usb-installer-${{ matrix.os }}
+          path: dist/
