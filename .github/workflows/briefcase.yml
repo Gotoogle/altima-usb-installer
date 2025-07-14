@@ -30,6 +30,7 @@ jobs:
       - name: 📦 Build app
         run: |
           python -m briefcase create
+          python -m briefcase dev
           python -m briefcase build
           python -m briefcase package
 
