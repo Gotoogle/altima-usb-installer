@@ -13,15 +13,14 @@ author_email = "dev@altimalinux.com"
 sources = ["src/altima_usb_installer"]
 resources = ["src/altima_usb_installer/altima-logo-100.png"]
 
-# Windows support package (Python runtime bundled)
-support_package.windows = "https://briefcase-support.org/python?platform=windows&version=3.10"
+# Windows support package
+support_package = "https://briefcase-support.org/python?platform=windows&version=3.10"
 
-# Linux support package
+# Linux support package (override using target-specific config)
 support_package.linux = "https://briefcase-support.org/python?platform=linux&version=3.10"
 
 long_description = """
 Altima USB Installer installs Ventoy on a USB stick and copies Altima Linux ISO to make it bootable.
 """
-
 
 
