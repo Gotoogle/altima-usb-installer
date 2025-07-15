@@ -9,7 +9,7 @@ requires = ["requests", "PySide6"]
 author = "Altima Linux Team"
 author_email = "dev@altimalinux.com"
 
-[tool.briefcase.app.altima_usb_installer]
+[tool.briefcase.app.altima-usb-installer]
 sources = ["src/altima_usb_installer"]
 resources = ["src/altima_usb_installer/altima-logo-100.png"]
 support_package = "https://briefcase-support.org/python?platform=linux&version=3.10"
