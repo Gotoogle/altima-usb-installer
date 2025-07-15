@@ -1,4 +1,4 @@
-name: Build Altima USB Installer
+name: Build Altima USB Installer (Windows Only)
 
 on:
   push:
@@ -7,26 +7,12 @@ on:
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-22.04, windows-latest]
+    name: Build Windows Installer
+    runs-on: windows-latest
 
     steps:
       - name: 🧾 Checkout source
         uses: actions/checkout@v4
-
-      - name: 🛠 Install system dependencies (Qt / OpenGL)
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libegl1 \
-            libxkbcommon-x11-0 \
-            libdbus-1-3 \
-            libnss3 \
-            libx11-xcb1
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@v4
@@ -38,14 +24,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install briefcase PySide6 requests
 
-      - name: 📦 Build app
+      - name: 🗑 Clean and recreate Windows app
         run: |
-          python -m briefcase create
+          python -m briefcase create --no-input
+
+      - name: 📦 Build and package app
+        run: |
           python -m briefcase build
           python -m briefcase package
 
       - name: 📤 Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: altima-usb-installer-${{ matrix.os }}
+          name: altima-usb-installer-windows
           path: dist/
+
