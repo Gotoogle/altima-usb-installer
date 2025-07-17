@@ -69,28 +69,38 @@ class AltimaUSBInstaller(QWidget):
         self.scan_usb_devices()
 
     def scan_usb_devices(self):
-        """Scan removable USB sticks (Windows only)"""
-        self.device_select.clear()
         try:
-            output = subprocess.check_output(
-                ["wmic", "logicaldisk", "get", "DeviceID,VolumeName,Size,Description"],
-                text=True
-            )
-            for line in output.splitlines()[1:]:
-                if "Removable" in line:
-                    parts = [p.strip() for p in line.split() if p.strip()]
-                    if len(parts) >= 3:
-                        device, label, size = parts[0], parts[1], parts[2]
-                        try:
-                            size_gb = int(size) / (1024**3)
-                            if size_gb > 8:
-                                self.device_select.addItem(f"{device} ({label}) {size_gb:.1f} GB")
-                        except ValueError:
-                            continue
-            if self.device_select.count() == 0:
-                QMessageBox.warning(self, "No USB", "No USB sticks >8GB found. Insert one and rescan.")
+            if sys.platform.startswith("win"):
+                try:
+                    # ✅ Prefer PowerShell (Windows 8+)
+                    output = subprocess.check_output(
+                        ["powershell", "-Command",
+                         "Get-Disk | Where-Object {$_.BusType -eq 'USB'} "
+                         "| Select-Object -Property Number, FriendlyName, Size, BusType "
+                         "| Format-Table -AutoSize"],
+                        text=True
+                    )
+                except Exception:
+                    # ✅ Fallback to WMIC if PowerShell fails
+                    output = subprocess.check_output(
+                        ["wmic", "diskdrive", "where", "InterfaceType='USB'",
+                         "get", "Caption,DeviceID,Size"],
+                        text=True
+                    )
+
+            elif sys.platform.startswith("linux"):
+                output = subprocess.check_output(
+                    ["lsblk", "-o", "NAME,SIZE,MODEL,TRAN"], text=True
+                )
+            else:
+                output = "Unsupported platform."
+
+            self.output_area.setPlainText(output)
+
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"USB scan failed:\n{e}")
+            error_msg = f"Error scanning USB devices:\n{traceback.format_exc()}"
+            self.output_area.setPlainText(error_msg)
+
 
     def load_iso_list(self):
         """Load ISO list from Altima download server"""
