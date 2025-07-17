@@ -1,198 +1,158 @@
 import sys
-import os
-import requests
-import shutil
 import subprocess
 import traceback
+import requests
 import zipfile
-import time
-from pathlib import Path
-from tempfile import TemporaryDirectory
+import os
 
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QComboBox,
-    QMessageBox, QProgressBar
+    QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QTextEdit
 )
-from PySide6.QtGui import QPixmap, Qt
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtCore import QTimer
+from PySide6.QtGui import QFont, QPixmap, QMovie
+from PySide6.QtCore import Qt
 
-ALTIMA_LOGO_PATH = "altima-logo-100.png"
+# --- App Constants ---
+ALTIMA_LOGO_PATH = "src/altima_usb_installer/altima-logo-100.png"
+SPINNER_PATH = "src/altima_usb_installer/spinner.gif"
 ALTIMA_ISO_LIST = "https://download.altimalinux.com/"
 VENTOY_WIN_URL = "https://github.com/ventoy/Ventoy/releases/latest/download/ventoy-1.0.97-windows.zip"
-
-INFO_PAGES = [
-    "https://altimalinux.com/about",
-    "https://altimalinux.com/features",
-    "https://altimalinux.com/screenshots"
-]
+VENTOY_DEST = "ventoy"  # folder where Ventoy will be extracted
 
 
 class AltimaUSBInstaller(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Altima USB Installer (Windows)")
-        self.setMinimumWidth(640)
+        self.setWindowTitle("Altima USB Installer")
+        self.setGeometry(200, 200, 500, 500)
 
-        # --- Widgets ---
-        self.logo = QLabel()
-        self.logo.setAlignment(Qt.AlignCenter)
-        self.logo.setPixmap(QPixmap(ALTIMA_LOGO_PATH).scaledToHeight(100))
-
-        self.info_label = QLabel("Insert a USB stick >8GB and select it below.")
-        self.device_select = QComboBox()
-        self.rescan_button = QPushButton("Rescan USB Devices")
-        self.rescan_button.clicked.connect(self.scan_usb_devices)
-
-        self.ventoy_button = QPushButton("Install Ventoy on USB")
-        self.ventoy_button.clicked.connect(self.install_ventoy)
-
-        self.iso_select = QComboBox()
-        self.load_iso_list()
-
-        self.download_button = QPushButton("Download & Copy ISO")
-        self.download_button.clicked.connect(self.download_and_copy_iso)
-
-        self.progress = QProgressBar()
-
-        # --- Web Info Panel ---
-        self.web_view = QWebEngineView()
-        self.page_index = 0
-        self.web_view.setUrl(INFO_PAGES[self.page_index])
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.rotate_pages)
-        self.timer.start(10000)  # rotate every 10 seconds
-
-        # --- Layout ---
         layout = QVBoxLayout()
-        layout.addWidget(self.logo)
+
+        # --- Logo ---
+        try:
+            pixmap = QPixmap(ALTIMA_LOGO_PATH)
+            logo_label = QLabel()
+            logo_label.setPixmap(pixmap.scaled(100, 100, Qt.KeepAspectRatio))
+            logo_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(logo_label)
+        except Exception:
+            pass
+
+        # --- Instructions ---
+        self.info_label = QLabel("Insert a USB stick, then click 'Scan for USB Devices'.")
+        self.info_label.setFont(QFont("Arial", 11))
+        self.info_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.info_label)
-        layout.addWidget(self.device_select)
-        layout.addWidget(self.rescan_button)
-        layout.addWidget(self.ventoy_button)
-        layout.addWidget(QLabel("Select ISO:"))
-        layout.addWidget(self.iso_select)
-        layout.addWidget(self.download_button)
-        layout.addWidget(self.progress)
-        layout.addWidget(self.web_view)
+
+        # --- Spinner (hidden by default) ---
+        self.spinner_label = QLabel()
+        self.spinner_movie = QMovie(SPINNER_PATH)
+        self.spinner_label.setMovie(self.spinner_movie)
+        self.spinner_label.setAlignment(Qt.AlignCenter)
+        self.spinner_label.setVisible(False)
+        layout.addWidget(self.spinner_label)
+
+        # --- Output Area ---
+        self.output_area = QTextEdit()
+        self.output_area.setReadOnly(True)
+        layout.addWidget(self.output_area)
+
+        # --- Buttons ---
+        self.scan_button = QPushButton("Scan for USB Devices")
+        self.scan_button.clicked.connect(self.scan_usb_devices)
+        layout.addWidget(self.scan_button)
+
+        self.download_ventoy_button = QPushButton("Download Ventoy")
+        self.download_ventoy_button.clicked.connect(self.download_and_extract_ventoy)
+        layout.addWidget(self.download_ventoy_button)
+
         self.setLayout(layout)
 
-        # Initial scan
-        self.scan_usb_devices()
-
-    def rotate_pages(self):
-        """Rotate info pages in web panel"""
-        self.page_index = (self.page_index + 1) % len(INFO_PAGES)
-        self.web_view.setUrl(INFO_PAGES[self.page_index])
-
+    # =========================
+    # USB DEVICE SCAN
+    # =========================
     def scan_usb_devices(self):
-        """Scan removable USB sticks (Windows only)"""
-        self.device_select.clear()
-        try:
-            output = subprocess.check_output(
-                ["wmic", "logicaldisk", "get", "DeviceID,VolumeName,Size,DriveType"],
-                text=True
-            )
-            for line in output.splitlines()[1:]:
-                if "2" in line:  # DriveType 2 = Removable Disk
-                    parts = [p.strip() for p in line.split() if p.strip()]
-                    if len(parts) >= 3:
-                        device, label, size = parts[0], parts[1], parts[2]
-                        try:
-                            size_gb = int(size) / (1024**3)
-                            if size_gb > 8:
-                                self.device_select.addItem(f"{device} ({label}) {size_gb:.1f} GB")
-                        except ValueError:
-                            continue
-            if self.device_select.count() == 0:
-                QMessageBox.warning(self, "No USB", "No USB sticks >8GB found. Insert one and rescan.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"USB scan failed:\n{e}")
+        self.output_area.setPlainText("Scanning for USB devices... please wait.")
+        self.spinner_label.setVisible(True)
+        self.spinner_movie.start()
 
-    def load_iso_list(self):
-        """Load ISO list from Altima download server"""
-        try:
-            html = requests.get(ALTIMA_ISO_LIST).text
-            import re
-            isos = re.findall(r'href=\"([^"]+\.iso)\"', html)
-            for iso in sorted(set(isos)):
-                self.iso_select.addItem(iso)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to load ISO list:\n{e}")
-
-    def install_ventoy(self):
-        """Download and install Ventoy on selected USB"""
-        disk_entry = self.device_select.currentText()
-        if not disk_entry:
-            QMessageBox.warning(self, "No USB", "Please select a USB device.")
-            return
-        device = disk_entry.split()[0]
-
-        confirm = QMessageBox.question(
-            self, "Confirm",
-            f"Ventoy will erase all data on {device}. Proceed?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if confirm != QMessageBox.Yes:
-            return
+        QApplication.processEvents()  # Refresh UI immediately
 
         try:
-            with TemporaryDirectory() as tmpdir:
-                self.progress.setValue(5)
-                zip_path = Path(tmpdir) / "ventoy.zip"
+            if sys.platform.startswith("win"):
+                try:
+                    # ✅ PowerShell (Windows 8+)
+                    output = subprocess.check_output(
+                        [
+                            "powershell", "-Command",
+                            "Get-Disk | Where-Object {$_.BusType -eq 'USB'} "
+                            "| Select-Object -Property Number, FriendlyName, Size, BusType "
+                            "| Format-Table -AutoSize"
+                        ],
+                        text=True
+                    )
+                except Exception:
+                    # ✅ WMIC fallback
+                    output = subprocess.check_output(
+                        [
+                            "wmic", "diskdrive", "where", "InterfaceType='USB'",
+                            "get", "Caption,DeviceID,Size"
+                        ],
+                        text=True
+                    )
+            elif sys.platform.startswith("linux"):
+                output = subprocess.check_output(
+                    ["lsblk", "-o", "NAME,SIZE,MODEL,TRAN"], text=True
+                )
+            else:
+                output = "Unsupported platform."
 
-                # Download Ventoy zip
-                r = requests.get(VENTOY_WIN_URL, stream=True)
-                with open(zip_path, "wb") as f:
+            self.output_area.setPlainText(output.strip())
+        except Exception:
+            error_msg = f"Error scanning USB devices:\n{traceback.format_exc()}"
+            self.output_area.setPlainText(error_msg)
+        finally:
+            self.spinner_movie.stop()
+            self.spinner_label.setVisible(False)
+
+    # =========================
+    # DOWNLOAD & EXTRACT VENTOY
+    # =========================
+    def download_and_extract_ventoy(self):
+        self.output_area.setPlainText("Downloading Ventoy... please wait.")
+        self.spinner_label.setVisible(True)
+        self.spinner_movie.start()
+        QApplication.processEvents()
+
+        try:
+            os.makedirs(VENTOY_DEST, exist_ok=True)
+            ventoy_zip_path = os.path.join(VENTOY_DEST, "ventoy.zip")
+
+            # Download Ventoy
+            with requests.get(VENTOY_WIN_URL, stream=True) as r:
+                r.raise_for_status()
+                total = int(r.headers.get('content-length', 0))
+                downloaded = 0
+                with open(ventoy_zip_path, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                self.progress.setValue(25)
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total > 0:
+                                percent = (downloaded / total) * 100
+                                self.output_area.setPlainText(f"Downloading Ventoy... {percent:.2f}%")
+                                QApplication.processEvents()
 
-                # Extract Ventoy
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    zip_ref.extractall(tmpdir)
+            # Extract Ventoy
+            with zipfile.ZipFile(ventoy_zip_path, "r") as zip_ref:
+                zip_ref.extractall(VENTOY_DEST)
 
-                exe_path = next(Path(tmpdir).glob("ventoy*/Ventoy2Disk.exe"))
-                result = subprocess.run([str(exe_path), "/I", device], capture_output=True)
-                self.progress.setValue(80)
-                if result.returncode == 0:
-                    QMessageBox.information(self, "Success", "Ventoy installed successfully.")
-                    self.progress.setValue(100)
-                    # Wait for drive remount
-                    time.sleep(5)
-                    self.scan_usb_devices()
-                else:
-                    QMessageBox.critical(self, "Failed", result.stderr.decode())
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Ventoy install failed:\n{e}")
-
-    def download_and_copy_iso(self):
-        """Download selected Altima ISO and copy to Ventoy partition"""
-        iso_file = self.iso_select.currentText()
-        if not iso_file:
-            return
-        device = self.device_select.currentText().split()[0]
-        iso_url = ALTIMA_ISO_LIST + iso_file
-
-        try:
-            self.progress.setValue(0)
-            iso_path = Path.home() / "Downloads" / iso_file
-
-            # Download ISO
-            r = requests.get(iso_url, stream=True)
-            total = int(r.headers.get("content-length", 0))
-            with open(iso_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    self.progress.setValue(int(f.tell() / total * 100 * 0.5))
-            self.progress.setValue(50)
-
-            # Copy to USB root
-            shutil.copy(iso_path, f"{device}\\")
-            self.progress.setValue(100)
-            QMessageBox.information(self, "Done", f"{iso_file} copied to USB.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"ISO copy failed:\n{e}")
+            self.output_area.setPlainText("✅ Ventoy downloaded and extracted successfully!")
+        except Exception:
+            error_msg = f"Error downloading Ventoy:\n{traceback.format_exc()}"
+            self.output_area.setPlainText(error_msg)
+        finally:
+            self.spinner_movie.stop()
+            self.spinner_label.setVisible(False)
 
 
 def main():
