@@ -11,19 +11,17 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont, QPixmap, QIcon
 from PySide6.QtCore import Qt, QTimer
 
-from PySide6.QtWebEngineWidgets import QWebEngineView
-
 # --- App Constants ---
-ALTIMA_LOGO_PATH = "src/altima_usb_installer/altima-logo-100.ico"  # ✅ Now uses ICO
+ALTIMA_LOGO_PATH = "src/altima_usb_installer/altima-logo-100.ico"  # ✅ ICO icon
 ALTIMA_ISO_LIST = "https://download.altimalinux.com/"
-VENTOY_WIN_URL = "https://downloads.altimalinux.com/ventoy.zip"
+VENTOY_WIN_URL = "https://download.altimalinux.com/ventoy.zip"  # ✅ Corrected
 VENTOY_DEST = "ventoy"
 
-# Slideshow URLs (placeholders)
-SLIDESHOW_URLS = [
-    "https://altimalinux.com/slides/slide1.html",
-    "https://altimalinux.com/slides/slide2.html",
-    "https://altimalinux.com/slides/slide3.html"
+# Local static slideshow images (replace with your actual slides)
+SLIDESHOW_IMAGES = [
+    "src/altima_usb_installer/slides/slide1.png",
+    "src/altima_usb_installer/slides/slide2.png",
+    "src/altima_usb_installer/slides/slide3.png"
 ]
 
 
@@ -59,30 +57,35 @@ class AltimaUSBInstaller(QWidget):
         self.scan_button.clicked.connect(self.scan_usb_devices)
         self.left_layout.addWidget(self.scan_button)
 
-        self.ok_button = QPushButton("OK")
+        self.ok_button = QPushButton("Next")
         self.ok_button.clicked.connect(self.goto_ventoy_screen)
         self.ok_button.setEnabled(False)
         self.left_layout.addWidget(self.ok_button)
 
         self.layout.addLayout(self.left_layout)
 
-        # Right panel (WebKit slideshow)
-        self.webview = QWebEngineView()
-        self.layout.addWidget(self.webview)
+        # Right panel (Static slideshow)
+        self.slide_label = QLabel()
+        self.slide_label.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.slide_label)
         self.setLayout(self.layout)
 
-        # ✅ Delay slideshow to reduce startup lag
-        QTimer.singleShot(1000, self.start_slideshow)
+        self.start_slideshow()
 
     def start_slideshow(self):
-        self.webview.setUrl(SLIDESHOW_URLS[0])
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.rotate_slides)
-        self.timer.start(5000)
+        if SLIDESHOW_IMAGES:
+            self.update_slide()
+            self.timer = QTimer()
+            self.timer.timeout.connect(self.next_slide)
+            self.timer.start(5000)  # Rotate every 5 seconds
 
-    def rotate_slides(self):
-        self.current_slide = (self.current_slide + 1) % len(SLIDESHOW_URLS)
-        self.webview.setUrl(SLIDESHOW_URLS[self.current_slide])
+    def update_slide(self):
+        pixmap = QPixmap(SLIDESHOW_IMAGES[self.current_slide])
+        self.slide_label.setPixmap(pixmap.scaled(380, 380, Qt.KeepAspectRatio))
+
+    def next_slide(self):
+        self.current_slide = (self.current_slide + 1) % len(SLIDESHOW_IMAGES)
+        self.update_slide()
 
     def scan_usb_devices(self):
         self.output_area.setPlainText("Scanning for USB devices... please wait.")
