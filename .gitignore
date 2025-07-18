@@ -1,0 +1,45 @@
+# Python cache & virtualenv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+venv/
+env/
+
+# Build & dist artifacts
+build/
+dist/
+*.deb
+*.msi
+*.zip
+*.AppImage
+*.dmg
+
+# Briefcase & PyInstaller
+*.spec
+logs/
+*.log
+
+# Backup & temporary files
+*.bak
+*.tmp
+*.swp
+*.swo
+*.save
+*copy*.py
+*copy*.yml
+save__*.py
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor configs
+.vscode/
+.idea/
+
+# Test slides or placeholder images (optional)
+src/altima_usb_installer/slides/test_*.png
