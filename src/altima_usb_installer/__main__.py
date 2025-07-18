@@ -4,64 +4,36 @@ import traceback
 import requests
 import zipfile
 import os
-import time
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QTextEdit, QHBoxLayout
 )
-from PySide6.QtGui import QFont, QPixmap, QMovie
+from PySide6.QtGui import QFont, QPixmap, QIcon
 from PySide6.QtCore import Qt, QTimer
 
-# WebKit imports
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 # --- App Constants ---
 ALTIMA_LOGO_PATH = "src/altima_usb_installer/altima-logo-100.png"
-SPINNER_PATH = "src/altima_usb_installer/spinner.gif"
 ALTIMA_ISO_LIST = "https://download.altimalinux.com/"
 VENTOY_WIN_URL = "https://downloads.altimalinux.com/ventoy.zip"
-VENTOY_DEST = "ventoy"  # folder where Ventoy will be extracted
+VENTOY_DEST = "ventoy"
 
 # Slideshow URLs (placeholders)
 SLIDESHOW_URLS = [
-    "https://altimalinux.com/about",
-    "https://altimalinux.com/about",
-    "https://altimalinux.com/about"
+    "https://altimalinux.com/slides/slide1.html",
+    "https://altimalinux.com/slides/slide2.html",
+    "https://altimalinux.com/slides/slide3.html"
 ]
-
-
-class SplashScreen(QWidget):
-    """Initial splash screen with logo and spinner."""
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Altima USB Installer")
-        self.setGeometry(300, 300, 300, 200)
-        layout = QVBoxLayout()
-
-        try:
-            pixmap = QPixmap(ALTIMA_LOGO_PATH)
-            logo_label = QLabel()
-            logo_label.setPixmap(pixmap.scaled(100, 100, Qt.KeepAspectRatio))
-            logo_label.setAlignment(Qt.AlignCenter)
-            layout.addWidget(logo_label)
-        except Exception:
-            pass
-
-        self.spinner_label = QLabel()
-        self.spinner_movie = QMovie(SPINNER_PATH)
-        self.spinner_label.setMovie(self.spinner_movie)
-        self.spinner_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.spinner_label)
-
-        self.setLayout(layout)
-        self.spinner_movie.start()
 
 
 class AltimaUSBInstaller(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Altima USB Installer")
-        self.setGeometry(200, 200, 800, 500)  # Wider for WebKit panel
+        self.setGeometry(200, 200, 800, 500)
+        self.setWindowIcon(QIcon(ALTIMA_LOGO_PATH))  # ✅ Set Altima logo as app icon
+
         self.current_slide = 0
         self.init_usb_screen()
 
@@ -71,10 +43,10 @@ class AltimaUSBInstaller(QWidget):
     def init_usb_screen(self):
         self.layout = QHBoxLayout()
 
-        # Left: main controls
+        # Left panel
         left_layout = QVBoxLayout()
 
-        title = QLabel("Detected USB Devices")
+        title = QLabel("Insert USB stick and click 'Scan for USB Devices'")
         title.setFont(QFont("Arial", 12, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         left_layout.addWidget(title)
@@ -94,17 +66,19 @@ class AltimaUSBInstaller(QWidget):
 
         self.layout.addLayout(left_layout)
 
-        # Right: WebKit panel
+        # Right panel (WebKit)
         self.webview = QWebEngineView()
-        self.webview.setUrl(SLIDESHOW_URLS[0])
         self.layout.addWidget(self.webview)
-
         self.setLayout(self.layout)
 
-        # Timer for slideshow rotation
+        # ✅ Delay slideshow load to reduce startup lag
+        QTimer.singleShot(500, self.start_slideshow)
+
+    def start_slideshow(self):
+        self.webview.setUrl(SLIDESHOW_URLS[0])
         self.timer = QTimer()
         self.timer.timeout.connect(self.rotate_slides)
-        self.timer.start(5000)  # rotate every 5s
+        self.timer.start(5000)
 
     def rotate_slides(self):
         self.current_slide = (self.current_slide + 1) % len(SLIDESHOW_URLS)
@@ -213,13 +187,6 @@ class AltimaUSBInstaller(QWidget):
 
 def main():
     app = QApplication(sys.argv)
-
-    splash = SplashScreen()
-    splash.show()
-    app.processEvents()
-    time.sleep(2)
-    splash.close()
-
     window = AltimaUSBInstaller()
     window.show()
     sys.exit(app.exec())
