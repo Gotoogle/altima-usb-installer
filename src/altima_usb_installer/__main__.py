@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 # --- App Constants ---
-ALTIMA_LOGO_PATH = "src/altima_usb_installer/altima-logo-100.png"
+ALTIMA_LOGO_PATH = "src/altima_usb_installer/altima-logo-100.ico"  # ✅ Now uses ICO
 ALTIMA_ISO_LIST = "https://download.altimalinux.com/"
 VENTOY_WIN_URL = "https://downloads.altimalinux.com/ventoy.zip"
 VENTOY_DEST = "ventoy"
@@ -32,7 +32,7 @@ class AltimaUSBInstaller(QWidget):
         super().__init__()
         self.setWindowTitle("Altima USB Installer")
         self.setGeometry(200, 200, 800, 500)
-        self.setWindowIcon(QIcon(ALTIMA_LOGO_PATH))  # ✅ Set Altima logo as app icon
+        self.setWindowIcon(QIcon(ALTIMA_LOGO_PATH))  # ✅ Per-window icon
 
         self.current_slide = 0
         self.init_usb_screen()
@@ -44,35 +44,35 @@ class AltimaUSBInstaller(QWidget):
         self.layout = QHBoxLayout()
 
         # Left panel
-        left_layout = QVBoxLayout()
+        self.left_layout = QVBoxLayout()
 
         title = QLabel("Insert USB stick and click 'Scan for USB Devices'")
         title.setFont(QFont("Arial", 12, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        left_layout.addWidget(title)
+        self.left_layout.addWidget(title)
 
         self.output_area = QTextEdit()
         self.output_area.setReadOnly(True)
-        left_layout.addWidget(self.output_area)
+        self.left_layout.addWidget(self.output_area)
 
         self.scan_button = QPushButton("Scan for USB Devices")
         self.scan_button.clicked.connect(self.scan_usb_devices)
-        left_layout.addWidget(self.scan_button)
+        self.left_layout.addWidget(self.scan_button)
 
         self.ok_button = QPushButton("OK")
         self.ok_button.clicked.connect(self.goto_ventoy_screen)
         self.ok_button.setEnabled(False)
-        left_layout.addWidget(self.ok_button)
+        self.left_layout.addWidget(self.ok_button)
 
-        self.layout.addLayout(left_layout)
+        self.layout.addLayout(self.left_layout)
 
-        # Right panel (WebKit)
+        # Right panel (WebKit slideshow)
         self.webview = QWebEngineView()
         self.layout.addWidget(self.webview)
         self.setLayout(self.layout)
 
-        # ✅ Delay slideshow load to reduce startup lag
-        QTimer.singleShot(500, self.start_slideshow)
+        # ✅ Delay slideshow to reduce startup lag
+        QTimer.singleShot(1000, self.start_slideshow)
 
     def start_slideshow(self):
         self.webview.setUrl(SLIDESHOW_URLS[0])
@@ -91,26 +91,36 @@ class AltimaUSBInstaller(QWidget):
         try:
             if sys.platform.startswith("win"):
                 try:
+                    # ✅ Hidden PowerShell execution
+                    si = subprocess.STARTUPINFO()
+                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    si.wShowWindow = 0
+
                     output = subprocess.check_output(
                         [
                             "powershell",
                             "-NoLogo", "-NoProfile",
-                            "-WindowStyle", "Normal",
                             "-Command",
-                            "mode con: cols=50 lines=15; "
                             "Get-Disk | Where-Object {$_.BusType -eq 'USB'} "
                             "| Select-Object -Property Number, FriendlyName, Size, BusType "
                             "| Format-Table -AutoSize"
                         ],
-                        text=True
+                        text=True,
+                        startupinfo=si
                     )
                 except Exception:
+                    # ✅ Hidden WMIC fallback
+                    si = subprocess.STARTUPINFO()
+                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    si.wShowWindow = 0
+
                     output = subprocess.check_output(
                         [
                             "wmic", "diskdrive", "where", "InterfaceType='USB'",
                             "get", "Caption,DeviceID,Size"
                         ],
-                        text=True
+                        text=True,
+                        startupinfo=si
                     )
             elif sys.platform.startswith("linux"):
                 output = subprocess.check_output(
@@ -129,31 +139,28 @@ class AltimaUSBInstaller(QWidget):
     # SCREEN 2: Ventoy Download
     # =========================
     def goto_ventoy_screen(self):
-        for i in reversed(range(self.layout.count())):
-            widget = self.layout.itemAt(i).widget()
+        # Clear left panel but keep slideshow
+        for i in reversed(range(self.left_layout.count())):
+            widget = self.left_layout.itemAt(i).widget()
             if widget:
                 widget.deleteLater()
-
-        ventoy_layout = QVBoxLayout()
 
         title = QLabel("Prepare Ventoy on Selected USB")
         title.setFont(QFont("Arial", 12, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        ventoy_layout.addWidget(title)
+        self.left_layout.addWidget(title)
 
         ventoy_url_label = QLabel(f"Ventoy Download URL:\n{VENTOY_WIN_URL}")
         ventoy_url_label.setAlignment(Qt.AlignCenter)
-        ventoy_layout.addWidget(ventoy_url_label)
+        self.left_layout.addWidget(ventoy_url_label)
 
         self.download_button = QPushButton("Download Ventoy")
         self.download_button.clicked.connect(self.download_and_extract_ventoy)
-        ventoy_layout.addWidget(self.download_button)
+        self.left_layout.addWidget(self.download_button)
 
         self.output_area = QTextEdit()
         self.output_area.setReadOnly(True)
-        ventoy_layout.addWidget(self.output_area)
-
-        self.setLayout(ventoy_layout)
+        self.left_layout.addWidget(self.output_area)
 
     def download_and_extract_ventoy(self):
         self.output_area.setPlainText("Downloading Ventoy... please wait.")
@@ -187,6 +194,7 @@ class AltimaUSBInstaller(QWidget):
 
 def main():
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon(ALTIMA_LOGO_PATH))  # ✅ App-wide icon
     window = AltimaUSBInstaller()
     window.show()
     sys.exit(app.exec())
