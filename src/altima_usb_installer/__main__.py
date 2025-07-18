@@ -13,16 +13,19 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont, QPixmap, QIcon
 from PySide6.QtCore import Qt, QTimer
 
+# --- Base Path for Bundled Resources ---
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.abspath("."))
+
 # --- App Constants ---
-ALTIMA_LOGO_PATH = "src/altima_usb_installer/altima-logo-100.ico"
+ALTIMA_LOGO_PATH = os.path.join(BASE_DIR, "altima-logo-100.ico")
 ALTIMA_ISO_LIST = "https://download.altimalinux.com/"
 VENTOY_WIN_URL = "https://download.altimalinux.com/ventoy.zip"
 VENTOY_DEST = "ventoy"
 
 SLIDESHOW_IMAGES = [
-    "src/altima_usb_installer/slides/slide1.png",
-    "src/altima_usb_installer/slides/slide2.png",
-    "src/altima_usb_installer/slides/slide3.png"
+    os.path.join(BASE_DIR, "slide1.png"),
+    os.path.join(BASE_DIR, "slide2.png"),
+    os.path.join(BASE_DIR, "slide3.png")
 ]
 
 
@@ -83,8 +86,9 @@ class AltimaUSBInstaller(QWidget):
             self.timer.start(5000)
 
     def update_slide(self):
-        pixmap = QPixmap(SLIDESHOW_IMAGES[self.current_slide])
-        self.slide_label.setPixmap(pixmap.scaled(380, 380, Qt.KeepAspectRatio))
+        if os.path.exists(SLIDESHOW_IMAGES[self.current_slide]):
+            pixmap = QPixmap(SLIDESHOW_IMAGES[self.current_slide])
+            self.slide_label.setPixmap(pixmap.scaled(380, 380, Qt.KeepAspectRatio))
 
     def next_slide(self):
         self.current_slide = (self.current_slide + 1) % len(SLIDESHOW_IMAGES)
@@ -176,15 +180,18 @@ class AltimaUSBInstaller(QWidget):
             with zipfile.ZipFile(ventoy_zip_path, "r") as zip_ref:
                 zip_ref.extractall(VENTOY_DEST)
 
-            self.output_area.setPlainText("✅ Ventoy downloaded. Running Ventoy2Disk...")
+            self.output_area.setPlainText("✅ Ventoy downloaded. Running Ventoy2Disk (admin)...")
             QApplication.processEvents()
 
-            # ✅ Find Ventoy2Disk.exe dynamically
+            # ✅ Find Ventoy2Disk.exe dynamically & run with UAC
             ventoy_folders = glob.glob(os.path.join(VENTOY_DEST, "ventoy-*"))
             if ventoy_folders:
                 ventoy_exe = os.path.join(ventoy_folders[0], "Ventoy2Disk.exe")
                 if os.path.exists(ventoy_exe):
-                    subprocess.run([ventoy_exe], check=True)
+                    subprocess.run([
+                        "powershell",
+                        "Start-Process", ventoy_exe, "-Verb", "runAs"
+                    ], check=True)
                     self.goto_iso_screen()
                 else:
                     self.output_area.setPlainText("❌ Ventoy2Disk.exe not found after extraction.")
@@ -221,7 +228,7 @@ class AltimaUSBInstaller(QWidget):
 
     def download_iso(self):
         self.output_area.setPlainText("Downloading ISO feature not implemented yet.")
-        # Placeholder: will implement ISO selection & copy in next step
+        # Placeholder for ISO download & copy
 
 
 def main():
