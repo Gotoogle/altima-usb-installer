@@ -1,20 +1,18 @@
 [tool.briefcase]
 project_name = "Altima USB Installer"
 bundle = "com.altimalinux.usbinstaller"
-version = "1.4.2"
-description = "Install Ventoy and copy Altima Linux ISO to USB"
-license.file = "LICENSE"  # Use PEP 621 compliant license definition
-requires = ["requests", "PySide6"]
-author = "Altima Linux Team"
-author_email = "dev@altimalinux.com"
-system_python = false
-
-[tool.briefcase.app.altima-usb-installer]
-formal_name = "Altima USB Installer"
+version = "1.4.3"
 description = "Install Ventoy and Altima Linux ISO to USB"
 long_description = """
 Altima USB Installer installs Ventoy on a USB stick and copies Altima Linux ISO to make it bootable.
 """
+license.file = "LICENSE"
+author = "Altima Linux Team"
+author_email = "dev@altimalinux.com"
+requires = ["requests", "PySide6"]
+
+[tool.briefcase.app.altima-usb-installer]
+formal_name = "Altima USB Installer"
 icon = "src/altima_usb_installer/altima-logo-100.ico"
 sources = ["src/altima_usb_installer"]
 resources = [
@@ -22,14 +20,3 @@ resources = [
     "src/altima_usb_installer/slides/slide2.png",
     "src/altima_usb_installer/slides/slide3.png"
 ]
-requires = ["requests", "PySide6"]
-
-
-
-# Linux support package (Windows now handled by PyInstaller)
-support_package = "https://briefcase-support.org/python?platform=linux&version=3.10"
-
-long_description = """
-Altima USB Installer installs Ventoy on a USB stick and copies Altima Linux ISO to make it bootable.
-"""
-
