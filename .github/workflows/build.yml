@@ -23,9 +23,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install pycairo PyGObject pyinstaller requests
 
-      - name: Build EXE with PyInstaller
+      - name: Build EXE with PyInstaller (bundle slides)
         run: |
-          pyinstaller --noconfirm --onefile --windowed altima-usb-installer-gtk.py
+          pyinstaller --noconfirm --onefile --windowed ^
+            --add-data "slide1.png;." ^
+            --add-data "slide2.png;." ^
+            --add-data "slide3.png;." ^
+            altima-usb-installer-gtk.py
         shell: cmd
 
       - name: Upload EXE Artifact
@@ -53,10 +57,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller pycairo PyGObject requests
 
-      - name: Build Linux AppImage
+      - name: Build Linux AppImage (bundle slides)
         run: |
-          pyinstaller --noconfirm --onefile --windowed altima-usb-installer-gtk.py
-          # Create a dummy AppDir and wrap it as AppImage
+          pyinstaller --noconfirm --onefile --windowed \
+            --add-data "slide1.png:." \
+            --add-data "slide2.png:." \
+            --add-data "slide3.png:." \
+            altima-usb-installer-gtk.py
           mkdir -p AppDir/usr/bin
           cp dist/altima-usb-installer-gtk AppDir/usr/bin/
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage

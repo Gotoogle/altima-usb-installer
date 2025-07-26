@@ -1,22 +1,19 @@
 [tool.briefcase]
 project_name = "Altima USB Installer"
 bundle = "com.altimalinux.usbinstaller"
-version = "1.4.3"
-description = "Install Ventoy and Altima Linux ISO to USB"
-long_description = """
-Altima USB Installer installs Ventoy on a USB stick and copies Altima Linux ISO to make it bootable.
-"""
-license.file = "LICENSE"
+version = "2.0.8"
+description = "Prepare Ventoy and copy Altima Linux ISO to USB"
+license = "MIT"
 author = "Altima Linux Team"
 author_email = "dev@altimalinux.com"
-requires = ["requests", "PySide6"]
 
 [tool.briefcase.app.altima-usb-installer]
-formal_name = "Altima USB Installer"
-icon = "src/altima_usb_installer/altima-logo-100.ico"
 sources = ["src/altima_usb_installer"]
 resources = [
-    "src/altima_usb_installer/slides/slide1.png",
-    "src/altima_usb_installer/slides/slide2.png",
-    "src/altima_usb_installer/slides/slide3.png"
+    "slide1.png",
+    "slide2.png",
+    "slide3.png"
 ]
+long_description = """
+Altima USB Installer prepares Ventoy on your USB stick, downloads an Altima Linux ISO, copies it, and ejects the USB ready to boot.
+"""
