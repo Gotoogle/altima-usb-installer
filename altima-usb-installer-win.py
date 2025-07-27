@@ -11,17 +11,22 @@ import time
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QListWidget, QListWidgetItem, QProgressBar, QCheckBox
+    QTextEdit, QListWidget, QProgressBar, QCheckBox
 )
+from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import Qt, QTimer
 
 # --- App Constants ---
+APP_VERSION = "2.1.2"
 ALTIMA_ISO_LIST = "https://download.altimalinux.com/altima-iso-list.json"
 VENTOY_WIN_URL = "https://download.altimalinux.com/ventoy.zip"
 VENTOY_DEST = "ventoy"
 
+LOGO_ICO = "altima-logo-100.ico"
+LOGO_PNG = "altima-logo-100.png"
+
 ROTATING_MESSAGES = [
-    "Welcome to Altima Linux! Convert your system easily and enjoy privacy.",
+    "Welcome to Altima Linux v2.1.2! Convert your system easily and enjoy privacy.",
     "Ventoy prepares your USB stick to boot Altima Linux live in minutes.",
     "Once ready, boot Altima Linux for a fast, minimal, and secure experience."
 ]
@@ -30,8 +35,14 @@ ROTATING_MESSAGES = [
 class AltimaUSBInstaller(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Altima USB Installer")
+        self.setWindowTitle(f"Altima USB Installer v{APP_VERSION}")
         self.setGeometry(200, 200, 900, 500)
+
+        # App Icon
+        if os.path.exists(LOGO_ICO):
+            self.setWindowIcon(QIcon(LOGO_ICO))
+        elif os.path.exists(LOGO_PNG):
+            self.setWindowIcon(QIcon(LOGO_PNG))
 
         self.selected_usb = None
         self.current_message = 0
@@ -40,21 +51,35 @@ class AltimaUSBInstaller(QWidget):
         main_layout = QHBoxLayout()
         self.setLayout(main_layout)
 
-        # Left panel (workflow)
+        # Left panel (2/3 width)
         self.left_panel = QVBoxLayout()
-        main_layout.addLayout(self.left_panel, 3)
+        main_layout.addLayout(self.left_panel, 2)
 
-        # Right panel (rotating messages)
+        # Right panel (1/3 width with logo & rotating messages)
         self.right_panel = QVBoxLayout()
-        main_layout.addLayout(self.right_panel, 2)
+        main_layout.addLayout(self.right_panel, 1)
 
         self.init_usb_screen()
         self.init_rotating_messages()
 
     # -----------------------------
-    # Rotating Info Messages
+    # Rotating Info Messages with Logo
     # -----------------------------
     def init_rotating_messages(self):
+        # Logo at top of right panel
+        if os.path.exists(LOGO_PNG):
+            logo_label = QLabel()
+            pixmap = QPixmap(LOGO_PNG)
+            logo_label.setPixmap(pixmap.scaledToWidth(120, Qt.SmoothTransformation))
+            logo_label.setAlignment(Qt.AlignCenter)
+            self.right_panel.addWidget(logo_label)
+        elif os.path.exists(LOGO_ICO):
+            logo_label = QLabel()
+            pixmap = QPixmap(LOGO_ICO)
+            logo_label.setPixmap(pixmap.scaledToWidth(120, Qt.SmoothTransformation))
+            logo_label.setAlignment(Qt.AlignCenter)
+            self.right_panel.addWidget(logo_label)
+
         self.info_label = QLabel(ROTATING_MESSAGES[self.current_message])
         self.info_label.setWordWrap(True)
         self.info_label.setAlignment(Qt.AlignCenter)
@@ -83,7 +108,7 @@ class AltimaUSBInstaller(QWidget):
 
         self.usb_output = QTextEdit()
         self.usb_output.setReadOnly(True)
-        self.usb_output.setFixedHeight(100)
+        self.usb_output.setFixedHeight(120)
         self.left_panel.addWidget(self.usb_output)
 
         self.usb_list = QListWidget()
@@ -120,12 +145,17 @@ class AltimaUSBInstaller(QWidget):
                     )
                     output_lines = [l.strip() for l in raw.splitlines() if l.strip()]
                 except Exception:
+                    output_lines = []
+
+                if not output_lines:
                     output_lines = ["No USB devices detected."]
 
                 self.usb_output.setPlainText("\n".join(output_lines))
-                self.usb_list.addItems(output_lines)
-                if output_lines and "No USB" not in output_lines[0]:
+                if "No USB" not in output_lines[0]:
+                    self.usb_list.addItems(output_lines)
                     self.ventoy_button.setEnabled(True)
+                else:
+                    self.ventoy_button.setEnabled(False)
             except Exception:
                 self.usb_output.setPlainText(traceback.format_exc())
 
@@ -186,7 +216,7 @@ class AltimaUSBInstaller(QWidget):
         threading.Thread(target=download_and_run, daemon=True).start()
 
     # -----------------------------
-    # Screen 3: ISO Download
+    # Screen 3: ISO Download & Copy
     # -----------------------------
     def goto_iso_screen(self):
         for i in reversed(range(self.left_panel.count())):

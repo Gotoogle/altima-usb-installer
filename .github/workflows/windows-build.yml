@@ -1,4 +1,4 @@
-name: Build Windows EXE (v2.1.0)
+name: Build Windows EXE (v2.1.2)
 
 on:
   push:
@@ -25,7 +25,10 @@ jobs:
 
       - name: Build EXE with PyInstaller
         run: |
-          pyinstaller --noconfirm --onefile --windowed altima-usb-installer-win.py
+          pyinstaller --noconfirm --onefile --windowed ^
+            --icon altima-logo-100.ico ^
+            altima-usb-installer-win.py
+
         shell: cmd
 
       - name: Upload EXE Artifact
