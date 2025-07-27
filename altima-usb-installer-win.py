@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# Altima USB Installer - Windows Version
+# Version: 2.1.2
+
 import sys
 import os
 import subprocess
@@ -26,9 +30,9 @@ LOGO_ICO = "altima-logo-100.ico"
 LOGO_PNG = "altima-logo-100.png"
 
 ROTATING_MESSAGES = [
-    "Welcome to Altima Linux v2.1.2! Convert your system easily and enjoy privacy.",
-    "Ventoy prepares your USB stick to boot Altima Linux live in minutes.",
-    "Once ready, boot Altima Linux for a fast, minimal, and secure experience."
+    "Hello World.",
+    "My name is Klaas.",
+    "This is Altima Linux"
 ]
 
 
