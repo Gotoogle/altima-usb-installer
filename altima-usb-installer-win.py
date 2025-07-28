@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Altima USB Installer - Windows Version
-# Version: 2.1.2
+# Version: 2.1.3
 
 import sys
 import os
@@ -21,7 +21,7 @@ from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import Qt, QTimer
 
 # --- App Constants ---
-APP_VERSION = "2.1.2"
+APP_VERSION = "2.1.3"
 ALTIMA_ISO_LIST = "https://download.altimalinux.com/altima-iso-list.json"
 VENTOY_WIN_URL = "https://download.altimalinux.com/ventoy.zip"
 VENTOY_DEST = "ventoy"
@@ -30,9 +30,9 @@ LOGO_ICO = "altima-logo-100.ico"
 LOGO_PNG = "altima-logo-100.png"
 
 ROTATING_MESSAGES = [
-    "Hello World.",
-    "My name is Klaas.",
-    "This is Altima Linux"
+    "Welcome to Altima Linux v2.1.3! Convert your system easily and enjoy privacy.",
+    "Ventoy prepares your USB stick to boot Altima Linux live in minutes.",
+    "Once ready, boot Altima Linux for a fast, minimal, and secure experience."
 ]
 
 
@@ -51,17 +51,15 @@ class AltimaUSBInstaller(QWidget):
         self.selected_usb = None
         self.current_message = 0
 
-        # Main horizontal layout
+        # Main horizontal layout (Left 1/3, Right 2/3)
         main_layout = QHBoxLayout()
         self.setLayout(main_layout)
 
-        # Left panel (2/3 width)
         self.left_panel = QVBoxLayout()
-        main_layout.addLayout(self.left_panel, 2)
+        main_layout.addLayout(self.left_panel, 1)
 
-        # Right panel (1/3 width with logo & rotating messages)
         self.right_panel = QVBoxLayout()
-        main_layout.addLayout(self.right_panel, 1)
+        main_layout.addLayout(self.right_panel, 2)
 
         self.init_usb_screen()
         self.init_rotating_messages()
@@ -70,7 +68,6 @@ class AltimaUSBInstaller(QWidget):
     # Rotating Info Messages with Logo
     # -----------------------------
     def init_rotating_messages(self):
-        # Logo at top of right panel
         if os.path.exists(LOGO_PNG):
             logo_label = QLabel()
             pixmap = QPixmap(LOGO_PNG)
@@ -155,7 +152,7 @@ class AltimaUSBInstaller(QWidget):
                     output_lines = ["No USB devices detected."]
 
                 self.usb_output.setPlainText("\n".join(output_lines))
-                if "No USB" not in output_lines[0]:
+                if output_lines and "No USB" not in output_lines[0]:
                     self.usb_list.addItems(output_lines)
                     self.ventoy_button.setEnabled(True)
                 else:
