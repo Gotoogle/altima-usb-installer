@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Altima USB Installer - Windows Version
-# Version: 2.1.3
+# Version: 2.1.4
 
 import sys
 import os
@@ -21,7 +21,7 @@ from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import Qt, QTimer
 
 # --- App Constants ---
-APP_VERSION = "2.1.3"
+APP_VERSION = "2.1.4"
 ALTIMA_ISO_LIST = "https://download.altimalinux.com/altima-iso-list.json"
 VENTOY_WIN_URL = "https://download.altimalinux.com/ventoy.zip"
 VENTOY_DEST = "ventoy"
@@ -30,7 +30,7 @@ LOGO_ICO = "altima-logo-100.ico"
 LOGO_PNG = "altima-logo-100.png"
 
 ROTATING_MESSAGES = [
-    "Welcome to Altima Linux v2.1.3! Convert your system easily and enjoy privacy.",
+    "Welcome to Altima Linux v2.1.4! Convert your system easily and enjoy privacy.",
     "Ventoy prepares your USB stick to boot Altima Linux live in minutes.",
     "Once ready, boot Altima Linux for a fast, minimal, and secure experience."
 ]
@@ -42,16 +42,20 @@ class AltimaUSBInstaller(QWidget):
         self.setWindowTitle(f"Altima USB Installer v{APP_VERSION}")
         self.setGeometry(200, 200, 900, 500)
 
-        # App Icon
+        # App Icon detection (debug-friendly)
         if os.path.exists(LOGO_ICO):
+            print(f"Using icon: {LOGO_ICO}")
             self.setWindowIcon(QIcon(LOGO_ICO))
         elif os.path.exists(LOGO_PNG):
+            print(f"Using fallback icon: {LOGO_PNG}")
             self.setWindowIcon(QIcon(LOGO_PNG))
+        else:
+            print("No icon file found, using default.")
 
         self.selected_usb = None
         self.current_message = 0
 
-        # Main horizontal layout (Left 1/3, Right 2/3)
+        # Main layout (Left 1/3, Right 2/3)
         main_layout = QHBoxLayout()
         self.setLayout(main_layout)
 
@@ -145,7 +149,8 @@ class AltimaUSBInstaller(QWidget):
                         text=True, startupinfo=si
                     )
                     output_lines = [l.strip() for l in raw.splitlines() if l.strip()]
-                except Exception:
+                except Exception as e:
+                    print(f"USB scan error: {e}")
                     output_lines = []
 
                 if not output_lines:
@@ -163,7 +168,7 @@ class AltimaUSBInstaller(QWidget):
         threading.Thread(target=scan, daemon=True).start()
 
     # -----------------------------
-    # Screen 2: Ventoy Preparation
+    # Remaining methods (Ventoy & ISO Download) unchanged from v2.1.3
     # -----------------------------
     def download_and_prepare_ventoy(self):
         selected = self.usb_list.currentItem()
@@ -216,9 +221,6 @@ class AltimaUSBInstaller(QWidget):
 
         threading.Thread(target=download_and_run, daemon=True).start()
 
-    # -----------------------------
-    # Screen 3: ISO Download & Copy
-    # -----------------------------
     def goto_iso_screen(self):
         for i in reversed(range(self.left_panel.count())):
             widget = self.left_panel.itemAt(i).widget()
@@ -295,7 +297,6 @@ class AltimaUSBInstaller(QWidget):
                                     percent = downloaded / total
                                     self.progress_bar.setValue(int(percent * 50))
 
-                # Auto-copy to Ventoy
                 copied_path = None
                 try:
                     si = subprocess.STARTUPINFO()
