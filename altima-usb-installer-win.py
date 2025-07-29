@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Altima USB Installer - Windows Version
-# Version: 2.1.4
+# Version: 2.1.5
 
 import sys
 import os
@@ -8,10 +8,9 @@ import subprocess
 import traceback
 import requests
 import zipfile
-import glob
 import shutil
 import threading
-import time
+import json
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -20,328 +19,202 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import Qt, QTimer
 
-# --- App Constants ---
-APP_VERSION = "2.1.4"
-ALTIMA_ISO_LIST = "https://download.altimalinux.com/altima-iso-list.json"
-VENTOY_WIN_URL = "https://download.altimalinux.com/ventoy.zip"
-VENTOY_DEST = "ventoy"
+APP_VERSION = "2.1.5"
 
-LOGO_ICO = "altima-logo-100.ico"
-LOGO_PNG = "altima-logo-100.png"
+ALTIMA_ISO_LIST_URL = "https://download.altimalinux.com/altima-iso-list.json"
+VENTOY_ZIP_URL = "https://download.altimalinux.com/ventoy.zip"
+VENTOY_DEST_DIR = "ventoy"
+ICON_PATH = "altima-logo-100.ico"
+LOGO_PATH = "altima-logo-100.png"
 
 ROTATING_MESSAGES = [
-    "Welcome to Altima Linux v2.1.4! Convert your system easily and enjoy privacy.",
-    "Ventoy prepares your USB stick to boot Altima Linux live in minutes.",
-    "Once ready, boot Altima Linux for a fast, minimal, and secure experience."
+    f"Altima USB Installer v{APP_VERSION}",
+    "Turn any USB drive into a bootable Altima Linux installer.",
+    "Powered by Ventoy and built for simplicity.",
 ]
-
 
 class AltimaUSBInstaller(QWidget):
     def __init__(self):
         super().__init__()
+
         self.setWindowTitle(f"Altima USB Installer v{APP_VERSION}")
-        self.setGeometry(200, 200, 900, 500)
+        self.setGeometry(100, 100, 900, 500)
 
-        # App Icon detection (debug-friendly)
-        if os.path.exists(LOGO_ICO):
-            print(f"Using icon: {LOGO_ICO}")
-            self.setWindowIcon(QIcon(LOGO_ICO))
-        elif os.path.exists(LOGO_PNG):
-            print(f"Using fallback icon: {LOGO_PNG}")
-            self.setWindowIcon(QIcon(LOGO_PNG))
+        # Icon
+        if os.path.exists(ICON_PATH):
+            self.setWindowIcon(QIcon(ICON_PATH))
+            print(f"✔ Icon loaded: {ICON_PATH}")
+        elif os.path.exists(LOGO_PATH):
+            self.setWindowIcon(QIcon(LOGO_PATH))
+            print(f"✔ Fallback icon loaded: {LOGO_PATH}")
         else:
-            print("No icon file found, using default.")
+            print("⚠ No icon file found.")
 
-        self.selected_usb = None
-        self.current_message = 0
+        # Layout
+        self.main_layout = QHBoxLayout()
+        self.left_layout = QVBoxLayout()
+        self.right_layout = QVBoxLayout()
+        self.setLayout(self.main_layout)
+        self.main_layout.addLayout(self.left_layout, 1)
+        self.main_layout.addLayout(self.right_layout, 2)
 
-        # Main layout (Left 1/3, Right 2/3)
-        main_layout = QHBoxLayout()
-        self.setLayout(main_layout)
-
-        self.left_panel = QVBoxLayout()
-        main_layout.addLayout(self.left_panel, 1)
-
-        self.right_panel = QVBoxLayout()
-        main_layout.addLayout(self.right_panel, 2)
-
-        self.init_usb_screen()
-        self.init_rotating_messages()
-
-    # -----------------------------
-    # Rotating Info Messages with Logo
-    # -----------------------------
-    def init_rotating_messages(self):
-        if os.path.exists(LOGO_PNG):
+        # Logo
+        if os.path.exists(LOGO_PATH):
             logo_label = QLabel()
-            pixmap = QPixmap(LOGO_PNG)
-            logo_label.setPixmap(pixmap.scaledToWidth(120, Qt.SmoothTransformation))
+            logo_label.setPixmap(QPixmap(LOGO_PATH).scaledToWidth(120))
             logo_label.setAlignment(Qt.AlignCenter)
-            self.right_panel.addWidget(logo_label)
-        elif os.path.exists(LOGO_ICO):
-            logo_label = QLabel()
-            pixmap = QPixmap(LOGO_ICO)
-            logo_label.setPixmap(pixmap.scaledToWidth(120, Qt.SmoothTransformation))
-            logo_label.setAlignment(Qt.AlignCenter)
-            self.right_panel.addWidget(logo_label)
+            self.right_layout.addWidget(logo_label)
 
-        self.info_label = QLabel(ROTATING_MESSAGES[self.current_message])
-        self.info_label.setWordWrap(True)
-        self.info_label.setAlignment(Qt.AlignCenter)
-        self.info_label.setStyleSheet("font-size:14px; padding:10px;")
-        self.right_panel.addWidget(self.info_label)
+        # Rotating text
+        self.message_label = QLabel(ROTATING_MESSAGES[0])
+        self.message_label.setAlignment(Qt.AlignCenter)
+        self.message_label.setWordWrap(True)
+        self.right_layout.addWidget(self.message_label)
 
+        self.msg_index = 0
         self.timer = QTimer()
         self.timer.timeout.connect(self.rotate_message)
         self.timer.start(5000)
 
-    def rotate_message(self):
-        self.current_message = (self.current_message + 1) % len(ROTATING_MESSAGES)
-        self.info_label.setText(ROTATING_MESSAGES[self.current_message])
-
-    # -----------------------------
-    # Screen 1: USB Detection
-    # -----------------------------
-    def init_usb_screen(self):
-        for i in reversed(range(self.left_panel.count())):
-            widget = self.left_panel.itemAt(i).widget()
-            if widget:
-                widget.deleteLater()
-
-        label = QLabel("<b>Insert USB stick and click Scan for USB Devices:</b>")
-        self.left_panel.addWidget(label)
-
+        # USB output
         self.usb_output = QTextEdit()
         self.usb_output.setReadOnly(True)
         self.usb_output.setFixedHeight(120)
-        self.left_panel.addWidget(self.usb_output)
+        self.left_layout.addWidget(self.usb_output)
 
         self.usb_list = QListWidget()
-        self.left_panel.addWidget(self.usb_list)
+        self.left_layout.addWidget(self.usb_list)
 
+        # Buttons
         self.scan_button = QPushButton("Scan for USB Devices")
         self.scan_button.clicked.connect(self.scan_usb_devices)
-        self.left_panel.addWidget(self.scan_button)
+        self.left_layout.addWidget(self.scan_button)
 
-        self.ventoy_button = QPushButton("Prepare Ventoy")
-        self.ventoy_button.setEnabled(False)
+        self.ventoy_button = QPushButton("Download and Install Ventoy")
         self.ventoy_button.clicked.connect(self.download_and_prepare_ventoy)
-        self.left_panel.addWidget(self.ventoy_button)
+        self.left_layout.addWidget(self.ventoy_button)
+
+        self.iso_button = QPushButton("Download Altima ISO")
+        self.iso_button.setEnabled(False)
+        self.iso_button.clicked.connect(self.download_iso)
+        self.left_layout.addWidget(self.iso_button)
+
+        # Progress bar
+        self.progress = QProgressBar()
+        self.left_layout.addWidget(self.progress)
+
+        # Eject
+        self.eject_checkbox = QCheckBox("Eject USB after ISO copy")
+        self.left_layout.addWidget(self.eject_checkbox)
+
+    def rotate_message(self):
+        self.msg_index = (self.msg_index + 1) % len(ROTATING_MESSAGES)
+        self.message_label.setText(ROTATING_MESSAGES[self.msg_index])
 
     def scan_usb_devices(self):
-        self.usb_output.setPlainText("Scanning for USB devices... please wait.")
+        self.usb_output.setPlainText("Scanning for USB devices...")
         self.usb_list.clear()
 
-        def scan():
+        def worker():
             try:
-                output_lines = []
-                try:
-                    si = subprocess.STARTUPINFO()
-                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                    si.wShowWindow = 0
-                    raw = subprocess.check_output(
-                        [
-                            "powershell", "-NoLogo", "-NoProfile",
-                            "-Command",
-                            "(Get-Disk | Where-Object {$_.BusType -eq 'USB'}) "
-                            "| ForEach-Object {\"$($_.Number) | $($_.FriendlyName) | $([math]::Round($_.Size/1GB))GB\"}"
-                        ],
-                        text=True, startupinfo=si
-                    )
-                    output_lines = [l.strip() for l in raw.splitlines() if l.strip()]
-                except Exception as e:
-                    print(f"USB scan error: {e}")
-                    output_lines = []
-
-                if not output_lines:
-                    output_lines = ["No USB devices detected."]
-
-                self.usb_output.setPlainText("\n".join(output_lines))
-                if output_lines and "No USB" not in output_lines[0]:
-                    self.usb_list.addItems(output_lines)
+                si = subprocess.STARTUPINFO()
+                si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                si.wShowWindow = 0
+                output = subprocess.check_output([
+                    "powershell", "-NoProfile", "-Command",
+                    "(Get-Disk | Where-Object {$_.BusType -eq 'USB'}) | ForEach-Object {\"$($_.Number) | $($_.FriendlyName) | $([math]::Round($_.Size/1GB))GB\"}"
+                ], startupinfo=si, text=True)
+                lines = [l.strip() for l in output.splitlines() if l.strip()]
+                if lines:
+                    self.usb_output.setPlainText("\n".join(lines))
+                    self.usb_list.addItems(lines)
                     self.ventoy_button.setEnabled(True)
                 else:
-                    self.ventoy_button.setEnabled(False)
-            except Exception:
-                self.usb_output.setPlainText(traceback.format_exc())
+                    self.usb_output.setPlainText("⚠ No USB devices detected.")
+            except Exception as e:
+                self.usb_output.setPlainText("❌ USB scan failed.\n" + traceback.format_exc())
 
-        threading.Thread(target=scan, daemon=True).start()
+        threading.Thread(target=worker, daemon=True).start()
 
-    # -----------------------------
-    # Remaining methods (Ventoy & ISO Download) unchanged from v2.1.3
-    # -----------------------------
     def download_and_prepare_ventoy(self):
-        selected = self.usb_list.currentItem()
-        if not selected:
-            self.usb_output.setPlainText("Please select a USB device first.")
-            return
+        self.progress.setValue(0)
+        self.usb_output.setPlainText("⬇ Downloading Ventoy...")
 
-        self.selected_usb = selected.text()
-        self.usb_output.setPlainText(f"Selected: {self.selected_usb}\nDownloading Ventoy...")
-
-        def download_and_run():
+        def worker():
             try:
-                os.makedirs(VENTOY_DEST, exist_ok=True)
-                ventoy_zip_path = os.path.join(VENTOY_DEST, "ventoy.zip")
-
-                with requests.get(VENTOY_WIN_URL, stream=True) as r:
+                os.makedirs(VENTOY_DEST_DIR, exist_ok=True)
+                zip_path = os.path.join(VENTOY_DEST_DIR, "ventoy.zip")
+                with requests.get(VENTOY_ZIP_URL, stream=True) as r:
                     r.raise_for_status()
-                    total = int(r.headers.get("content-length", 0))
-                    downloaded = 0
-                    with open(ventoy_zip_path, "wb") as f:
+                    total = int(r.headers.get('content-length', 0))
+                    with open(zip_path, "wb") as f:
+                        downloaded = 0
                         for chunk in r.iter_content(chunk_size=8192):
-                            if chunk:
-                                f.write(chunk)
-                                downloaded += len(chunk)
-                                if total > 0:
-                                    percent = (downloaded / total) * 100
-                                    self.usb_output.setPlainText(
-                                        f"Downloading Ventoy... {percent:.1f}%"
-                                    )
-
-                with zipfile.ZipFile(ventoy_zip_path, "r") as zip_ref:
-                    zip_ref.extractall(VENTOY_DEST)
-
-                self.usb_output.setPlainText("✅ Ventoy downloaded. Running Ventoy2Disk...")
-                ventoy_folders = glob.glob(os.path.join(VENTOY_DEST, "ventoy-*"))
-                if ventoy_folders:
-                    ventoy_exe = os.path.join(ventoy_folders[0], "Ventoy2Disk.exe")
-                    if os.path.exists(ventoy_exe):
-                        subprocess.run(
-                            ["powershell", "Start-Process", ventoy_exe, "-Verb", "runAs"],
-                            check=True
-                        )
-                        self.goto_iso_screen()
-                    else:
-                        self.usb_output.setPlainText("❌ Ventoy2Disk.exe not found.")
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total:
+                                percent = int((downloaded / total) * 100)
+                                self.progress.setValue(percent)
+                self.usb_output.setPlainText("✔ Ventoy downloaded. Extracting...")
+                with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                    zip_ref.extractall(VENTOY_DEST_DIR)
+                exe = self.find_ventoy_exe()
+                if exe:
+                    self.usb_output.setPlainText(f"Launching: {exe}")
+                    subprocess.run([exe], check=True)
+                    self.iso_button.setEnabled(True)
                 else:
-                    self.usb_output.setPlainText("❌ Ventoy folder not found.")
-            except Exception:
-                self.usb_output.setPlainText(traceback.format_exc())
+                    self.usb_output.setPlainText("❌ Could not find Ventoy2Disk.exe.")
+            except Exception as e:
+                self.usb_output.setPlainText("❌ Error preparing Ventoy:\n" + traceback.format_exc())
 
-        threading.Thread(target=download_and_run, daemon=True).start()
+        threading.Thread(target=worker, daemon=True).start()
 
-    def goto_iso_screen(self):
-        for i in reversed(range(self.left_panel.count())):
-            widget = self.left_panel.itemAt(i).widget()
-            if widget:
-                widget.deleteLater()
-
-        label = QLabel(f"<b>Ventoy installed on: {self.selected_usb}</b>\nSelect an ISO to download:")
-        self.left_panel.addWidget(label)
-
-        self.iso_list = QListWidget()
-        self.left_panel.addWidget(self.iso_list)
-
-        self.iso_output = QTextEdit()
-        self.iso_output.setReadOnly(True)
-        self.left_panel.addWidget(self.iso_output)
-
-        self.progress_bar = QProgressBar()
-        self.left_panel.addWidget(self.progress_bar)
-
-        self.eject_checkbox = QCheckBox("Eject USB when complete")
-        self.eject_checkbox.setChecked(True)
-        self.left_panel.addWidget(self.eject_checkbox)
-
-        self.download_button = QPushButton("Download & Copy ISO")
-        self.download_button.clicked.connect(self.download_iso)
-        self.left_panel.addWidget(self.download_button)
-
-        self.load_iso_list()
-
-    def load_iso_list(self):
-        self.iso_output.setPlainText("Fetching ISO list...")
-
-        def fetch_list():
-            try:
-                response = requests.get(ALTIMA_ISO_LIST, timeout=5)
-                data = response.json() if response.status_code == 200 else {}
-                isos = data.get("isos", [
-                    {"name": "Altima Linux Minimal (Fallback)", "file": "altima-minimal-1.0.iso"},
-                    {"name": "Altima Linux Full (Fallback)", "file": "altima-full-1.0.iso"}
-                ])
-                self.iso_list.clear()
-                for iso in isos:
-                    self.iso_list.addItem(f"{iso['name']} ({iso['file']})")
-            except Exception:
-                self.iso_output.setPlainText(traceback.format_exc())
-
-        threading.Thread(target=fetch_list, daemon=True).start()
+    def find_ventoy_exe(self):
+        for root, _, files in os.walk(VENTOY_DEST_DIR):
+            for f in files:
+                if f.lower() == "ventoy2disk.exe":
+                    return os.path.join(root, f)
+        return None
 
     def download_iso(self):
-        selected = self.iso_list.currentItem()
-        if not selected:
-            self.iso_output.setPlainText("Please select an ISO first.")
-            return
+        self.usb_output.setPlainText("⬇ Fetching Altima ISO list...")
 
-        iso_text = selected.text()
-        iso_file = iso_text.split("(")[-1].strip(")")
-        self.iso_output.setPlainText(f"Downloading {iso_file}...")
-
-        def download_and_copy():
+        def worker():
             try:
-                iso_url = ALTIMA_ISO_LIST.replace("altima-iso-list.json", iso_file)
-                iso_path = os.path.join(os.getcwd(), iso_file)
-
+                r = requests.get(ALTIMA_ISO_LIST_URL)
+                r.raise_for_status()
+                isos = r.json()
+                if not isos:
+                    self.usb_output.setPlainText("⚠ No ISOs found.")
+                    return
+                iso_url = isos[0]["url"]
+                iso_name = iso_url.split("/")[-1]
                 with requests.get(iso_url, stream=True) as r:
                     r.raise_for_status()
-                    total = int(r.headers.get("content-length", 0))
-                    downloaded = 0
-                    with open(iso_path, "wb") as f:
+                    total = int(r.headers.get('content-length', 0))
+                    with open(iso_name, "wb") as f:
+                        downloaded = 0
                         for chunk in r.iter_content(chunk_size=8192):
-                            if chunk:
-                                f.write(chunk)
-                                downloaded += len(chunk)
-                                if total > 0:
-                                    percent = downloaded / total
-                                    self.progress_bar.setValue(int(percent * 50))
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total:
+                                percent = int((downloaded / total) * 100)
+                                self.progress.setValue(percent)
+                self.usb_output.setPlainText(f"✔ Download complete: {iso_name}")
+                if self.eject_checkbox.isChecked():
+                    self.usb_output.append("🔌 Please eject USB manually.")
+            except Exception as e:
+                self.usb_output.setPlainText("❌ ISO download failed:\n" + traceback.format_exc())
 
-                copied_path = None
-                try:
-                    si = subprocess.STARTUPINFO()
-                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                    si.wShowWindow = 0
-                    drive_letter = subprocess.check_output(
-                        [
-                            "powershell", "-NoLogo", "-NoProfile",
-                            "-Command",
-                            "(Get-Volume | Where-Object {$_.FileSystemLabel -eq 'Ventoy'}).DriveLetter"
-                        ],
-                        text=True, startupinfo=si
-                    ).strip()
-                    if drive_letter:
-                        copied_path = f"{drive_letter}:\\{iso_file}"
-                        shutil.copy(iso_path, copied_path)
-                        self.progress_bar.setValue(100)
-                        self.iso_output.setPlainText(
-                            f"✅ ISO copied to {copied_path}\nYour USB is ready to boot!"
-                        )
-                        if self.eject_checkbox.isChecked():
-                            subprocess.run(
-                                [
-                                    "powershell", "-NoLogo", "-NoProfile",
-                                    f"Remove-Volume -DriveLetter {drive_letter} -Confirm:$false"
-                                ]
-                            )
-                            self.iso_output.append("✅ USB ejected safely.")
-                except Exception:
-                    self.iso_output.append(f"✅ ISO downloaded to {iso_path}\nCopy manually if needed.")
-            except Exception:
-                self.iso_output.setPlainText(traceback.format_exc())
-            finally:
-                time.sleep(1)
-                self.progress_bar.setValue(0)
-
-        threading.Thread(target=download_and_copy, daemon=True).start()
+        threading.Thread(target=worker, daemon=True).start()
 
 
 def main():
     app = QApplication(sys.argv)
-    window = AltimaUSBInstaller()
-    window.show()
+    win = AltimaUSBInstaller()
+    win.show()
     sys.exit(app.exec())
-
 
 if __name__ == "__main__":
     main()
