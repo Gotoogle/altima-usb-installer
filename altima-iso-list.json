@@ -1,0 +1,15 @@
+  GNU nano 7.2                                                         altima-iso-list.json                                                                   
+{
+  "isos": [
+    {
+      "name": "Altima-Linux-amd64-cinnamon",
+      "file": "Altima-Linux-amd64-cinnamon.iso",
+      "sha256": "Altima-Linux-amd64-cinnamon.md5"
+    },
+    {
+      "name": "Altima Linux Vanuatu",
+      "file": "altima-vanuatu.iso",
+      "sha256": "altima-vanuatu.md5"
+    }
+  ]
+}

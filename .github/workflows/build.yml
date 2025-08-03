@@ -1,0 +1,77 @@
+name: Build Installers (Windows EXE & Linux AppImage)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pycairo PyGObject pyinstaller requests
+
+      - name: Build EXE with PyInstaller (bundle slides)
+        run: |
+          pyinstaller --noconfirm --onefile --windowed ^
+            --add-data "slide1.png;." ^
+            --add-data "slide2.png;." ^
+            --add-data "slide3.png;." ^
+            altima-usb-installer-gtk.py
+        shell: cmd
+
+      - name: Upload EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: altima-usb-installer-windows
+          path: dist/altima-usb-installer-gtk.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install GTK and PyInstaller
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev gir1.2-gtk-3.0 gir1.2-webkit2-4.0 python3-gi
+          python -m pip install --upgrade pip
+          pip install pyinstaller pycairo PyGObject requests
+
+      - name: Build Linux AppImage (bundle slides)
+        run: |
+          pyinstaller --noconfirm --onefile --windowed \
+            --add-data "slide1.png:." \
+            --add-data "slide2.png:." \
+            --add-data "slide3.png:." \
+            altima-usb-installer-gtk.py
+          mkdir -p AppDir/usr/bin
+          cp dist/altima-usb-installer-gtk AppDir/usr/bin/
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ./appimagetool-x86_64.AppImage AppDir Altima-USB-Installer-x86_64.AppImage
+
+      - name: Upload AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: altima-usb-installer-linux
+          path: Altima-USB-Installer-x86_64.AppImage
