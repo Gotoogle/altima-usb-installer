@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Altima USB Installer v2.2.1
+# Altima USB Installer v2.2.3
 
 import sys
 import subprocess
@@ -11,7 +11,7 @@ import threading
 import traceback
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QTextEdit, QVBoxLayout,
-    QHBoxLayout, QSizePolicy, QComboBox
+    QHBoxLayout, QSizePolicy, QComboBox, QProgressBar
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QPixmap, QIcon
@@ -59,17 +59,25 @@ class AltimaInstaller(QWidget):
         self.left_panel.addWidget(self.scan_btn)
 
         self.download_btn = QPushButton("Download and Install Ventoy")
+        self.download_btn.setEnabled(False)
         self.download_btn.clicked.connect(self.download_and_install_ventoy)
         self.left_panel.addWidget(self.download_btn)
 
         self.iso_btn = QPushButton("Download ISO and Copy to USB")
+        self.iso_btn.setEnabled(False)
         self.iso_btn.clicked.connect(self.download_and_copy_iso)
         self.left_panel.addWidget(self.iso_btn)
+
+        self.progress = QProgressBar()
+        self.progress.setValue(0)
+        self.left_panel.addWidget(self.progress)
 
         self.left_panel.addStretch()
         self.layout.addLayout(self.left_panel, 1)
         self.layout.addLayout(self.right_panel, 2)
         self.setLayout(self.layout)
+
+        self.usb_combo.currentIndexChanged.connect(self.enable_buttons)
 
     def update_text(self):
         self.text_display.setPlainText(self.messages[self.message_index])
@@ -79,22 +87,24 @@ class AltimaInstaller(QWidget):
         self.update_text()
         QTimer.singleShot(5000, self.rotate_message)
 
+    def enable_buttons(self):
+        has_selection = bool(self.usb_combo.currentText())
+        self.download_btn.setEnabled(has_selection)
+        self.iso_btn.setEnabled(has_selection)
+
     def scan_usb(self):
         self.usb_combo.clear()
         try:
             output = subprocess.check_output(
-                ["powershell", "-Command",
-                 "Get-CimInstance Win32_DiskDrive | Where-Object {$_.InterfaceType -eq 'USB'} | Select-Object -ExpandProperty DeviceID"],
+                ["powershell", "-WindowStyle", "Hidden", "-Command",
+                 "Get-CimInstance Win32_DiskDrive | Where-Object {$_.InterfaceType -eq 'USB'} | ForEach-Object { $_.DeviceID }"],
                 text=True, stderr=subprocess.DEVNULL
             )
             devices = [line.strip() for line in output.splitlines() if line.strip()]
-            if devices:
-                self.usb_combo.addItems(devices)
-                self.text_display.setPlainText("USB devices detected.")
-            else:
-                self.text_display.setPlainText("No USB devices found.")
+            self.usb_combo.addItems(devices)
+            self.text_display.setPlainText("USB scan complete.")
         except Exception as e:
-            self.text_display.setPlainText(f"Error: {e}")
+            self.text_display.setPlainText(f"USB scan error:\n{traceback.format_exc()}")
 
     def download_and_install_ventoy(self):
         self.text_display.setPlainText("Downloading Ventoy...")
@@ -106,17 +116,25 @@ class AltimaInstaller(QWidget):
             zip_path = os.path.join(dest, "ventoy.zip")
             with requests.get(url, stream=True) as r:
                 r.raise_for_status()
+                total = int(r.headers.get('content-length', 0))
                 with open(zip_path, "wb") as f:
+                    downloaded = 0
                     for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            percent = int((downloaded / total) * 100) if total else 0
+                            self.progress.setValue(percent)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(dest)
             exe_path = self._find_ventoy_exe(dest)
             if exe_path:
                 subprocess.run([exe_path], shell=True)
-            self.text_display.setPlainText("Ventoy installed.")
+            self.text_display.setPlainText("✅ Ventoy installed.")
         except Exception:
             self.text_display.setPlainText(traceback.format_exc())
+        finally:
+            self.progress.setValue(0)
 
     def _find_ventoy_exe(self, folder):
         for root, _, files in os.walk(folder):
@@ -127,27 +145,40 @@ class AltimaInstaller(QWidget):
 
     def download_and_copy_iso(self):
         self.text_display.setPlainText("Fetching ISO list...")
+        threading.Thread(target=self._download_iso_thread, daemon=True).start()
+
+    def _download_iso_thread(self):
         try:
             response = requests.get(ISO_LIST_URL)
             response.raise_for_status()
             data = response.json()
-            iso_url = data["isos"][0]["url"]  # pick first one
-            self.text_display.setPlainText("Downloading ISO...")
+            iso_url = data["isos"][0]["url"]
             iso_path = os.path.join("iso", os.path.basename(iso_url))
             os.makedirs("iso", exist_ok=True)
+            self.text_display.setPlainText("Downloading ISO...")
+
             with requests.get(iso_url, stream=True) as r:
                 r.raise_for_status()
+                total = int(r.headers.get('content-length', 0))
                 with open(iso_path, "wb") as f:
+                    downloaded = 0
                     for chunk in r.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            percent = int((downloaded / total) * 100) if total else 0
+                            self.progress.setValue(percent)
+
             target = self.usb_combo.currentText()
             if target:
                 subprocess.run(["xcopy", iso_path, target], shell=True)
-                self.text_display.setPlainText("ISO copied to USB.")
+                self.text_display.setPlainText("✅ ISO copied to USB.")
             else:
-                self.text_display.setPlainText("No USB selected.")
+                self.text_display.setPlainText("❌ No USB selected.")
         except Exception:
             self.text_display.setPlainText(traceback.format_exc())
+        finally:
+            self.progress.setValue(0)
 
 def main():
     app = QApplication(sys.argv)
